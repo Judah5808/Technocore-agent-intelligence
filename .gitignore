@@ -1,0 +1,13 @@
+.env
+DID.txt
+*.seed
+*.key
+
+# Local runtime state and generated reports
+monitor_state.json
+activity_history.jsonl
+activity_report.json
+intelligence_report.json
+monitor.py.phase4-backup
+__pycache__/
+.env.save
