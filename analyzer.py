@@ -271,6 +271,64 @@ def build_report(records):
     return report
 
 
+def build_trend_summary(records, window_size=20):
+    """Compare the latest activity window with the preceding window."""
+    if len(records) < window_size * 2:
+        return {
+            "status": "insufficient_history",
+            "records_available": len(records),
+            "records_needed": window_size * 2,
+            "message": "More history is needed before reliable trends can be reported.",
+        }
+
+    previous = records[-(window_size * 2):-window_size]
+    current = records[-window_size:]
+
+    def signal_counts(items):
+        counts = {}
+        for record in items:
+            for signal in signal_names_from_text(record.get("text", "")):
+                counts[signal] = counts.get(signal, 0) + 1
+        return counts
+
+    def agent_ids(items):
+        return {
+            record.get("from")
+            for record in items
+            if record.get("from")
+        }
+
+    previous_signals = signal_counts(previous)
+    current_signals = signal_counts(current)
+
+    signal_changes = []
+    for signal in sorted(set(previous_signals) | set(current_signals)):
+        before = previous_signals.get(signal, 0)
+        after = current_signals.get(signal, 0)
+        if before != after:
+            signal_changes.append({
+                "signal": signal,
+                "previous": before,
+                "current": after,
+                "change": after - before,
+            })
+
+    previous_agents = agent_ids(previous)
+    current_agents = agent_ids(current)
+
+    return {
+        "status": "ok",
+        "window_size": window_size,
+        "signal_changes": sorted(
+            signal_changes,
+            key=lambda item: abs(item["change"]),
+            reverse=True,
+        ),
+        "new_agents": sorted(current_agents - previous_agents),
+        "inactive_agents": sorted(previous_agents - current_agents),
+        "previous_unique_agents": len(previous_agents),
+        "current_unique_agents": len(current_agents),
+    }
 def print_report(report):
 
     summary = report["summary"]

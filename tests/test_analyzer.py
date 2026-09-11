@@ -5,6 +5,7 @@ from analyzer import (
     build_agent_profiles,
     build_report,
     build_signal_summary,
+    build_trend_summary,
     signal_names_from_text,
 )
 
@@ -120,6 +121,43 @@ class TestBuildReport(unittest.TestCase):
         self.assertEqual(report["summary"]["average_score"], 3.5)
         self.assertEqual(len(report["agent_profiles"]), 2)
 
+
+    def test_trend_summary_requires_enough_history(self):
+        records = [{"from": "did:key:test", "text": "hello"}] * 9
+
+        result = build_trend_summary(records, window_size=5)
+
+        self.assertEqual(result["status"], "insufficient_history")
+        self.assertEqual(result["records_available"], 9)
+        self.assertEqual(result["records_needed"], 10)
+
+    def test_trend_summary_detects_signal_change_and_new_agent(self):
+        previous = [
+            {"from": "did:key:old", "text": "hello"}
+            for _ in range(20)
+        ]
+        current = [
+            {"from": "did:key:new", "text": "testnet deployment"}
+            for _ in range(3)
+        ] + [
+            {"from": "did:key:new", "text": "hello"}
+            for _ in range(17)
+        ]
+
+        result = build_trend_summary(
+            previous + current,
+            window_size=20,
+        )
+
+        self.assertEqual(result["status"], "ok")
+        self.assertIn("did:key:new", result["new_agents"])
+        self.assertIn("did:key:old", result["inactive_agents"])
+
+        changes = {
+            item["signal"]: item["change"]
+            for item in result["signal_changes"]
+        }
+        self.assertEqual(changes["testnet"], 3)
 
 if __name__ == "__main__":
     unittest.main()
